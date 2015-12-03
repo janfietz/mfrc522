@@ -247,7 +247,7 @@ uint8_t MFRC522AntiCollisionLoop(MFRC522Driver* mfrc522p, uint8_t selcommand, ui
     uint16_t unLen;
     uint8_t cascadeLevel[5];
     uint8_t command[2];
-    uint8_t SAK = 0;
+    uint8_t SAK = 0xff;
 
 
     command[0] = selcommand; // SEL
@@ -263,7 +263,7 @@ uint8_t MFRC522AntiCollisionLoop(MFRC522Driver* mfrc522p, uint8_t selcommand, ui
 
         if (serNumCheck != cascadeLevel[i]) {
             status = MIFARE_ERR;
-            return 0;
+            return SAK;
         }
 
         SAK = MifareSelectTag(mfrc522p, selcommand, cascadeLevel);
@@ -498,7 +498,7 @@ uint8_t MifareSelectTag(MFRC522Driver* mfrc522p, uint8_t command, uint8_t* serNu
     if ((status == MIFARE_OK) && (recvBits == 0x18)) {
         SAK = buffer[0];
     } else {
-        SAK = 0;
+        SAK = 0xff;
     }
 
     return SAK;
