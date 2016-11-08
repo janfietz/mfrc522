@@ -100,7 +100,7 @@ extern "C" {
   void MFRC522Start(MFRC522Driver* mfrc522p, const MFRC522Config *config);
   void MFRC522Stop(MFRC522Driver* mfrc522p);
 
-  MIFARE_Status_t MifareRequest(MFRC522Driver* mfrc522p, uint8_t reqMode, uint8_t* TagType);
+  MIFARE_Status_t MifareRequest(MFRC522Driver* mfrc522p, uint8_t reqMode, uint8_t* TagType, uint8_t tagTypeLen);
   MIFARE_Status_t MifareAnticoll(MFRC522Driver* mfrc522p, struct MifareUID* id);
   void MifareCalculateCRC(MFRC522Driver* mfrc522p, uint8_t*  pIndata, uint8_t len, uint8_t* pOutData);
   uint8_t MifareSelectTag(MFRC522Driver* mfrc522p, uint8_t command, uint8_t* serNum);

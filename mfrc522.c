@@ -152,7 +152,7 @@ static void MFRC522AntennaOff(MFRC522Driver* mfrc522p) {
     MFRC522ClearBitMask(mfrc522p, MifareREG_TX_CONTROL, 0x03);
 }
 
-static MIFARE_Status_t MifareToPICC(MFRC522Driver* mfrc522p, uint8_t command, uint8_t* sendData, uint8_t sendLen, uint8_t* backData, uint16_t* backLen)
+static MIFARE_Status_t MifareToPICC(MFRC522Driver* mfrc522p, uint8_t command, uint8_t* sendData, uint8_t sendLen, uint8_t* backData, uint8_t backDataLen, uint16_t* backLen)
 {
     MIFARE_Status_t status = MIFARE_ERR;
     uint8_t irqEn = 0x00;
@@ -227,10 +227,18 @@ static MIFARE_Status_t MifareToPICC(MFRC522Driver* mfrc522p, uint8_t command, ui
                     n = MifareMAX_LEN;
                 }
 
-                //Reading the received data in FIFO
-                for (i = 0; i < n; i++) {
-                    backData[i] = MFRC522ReadRegister(mfrc522p, MifareREG_FIFO_DATA);
+                if (n <= backDataLen)
+                {
+                    //Reading the received data in FIFO
+                    for (i = 0; i < n; i++) {
+                        backData[i] = MFRC522ReadRegister(mfrc522p, MifareREG_FIFO_DATA);
+                    }
                 }
+                else
+                {
+                    status = MIFARE_ERR;
+                }
+
             }
         } else {
             status = MIFARE_ERR;
@@ -252,7 +260,7 @@ uint8_t MFRC522AntiCollisionLoop(MFRC522Driver* mfrc522p, uint8_t selcommand, ui
 
     command[0] = selcommand; // SEL
     command[1] = 0x20; // NVB
-    status = MifareToPICC(mfrc522p, PCD_TRANSCEIVE, command, 2, cascadeLevel, &unLen);
+    status = MifareToPICC(mfrc522p, PCD_TRANSCEIVE, command, 2, cascadeLevel, sizeof(cascadeLevel), &unLen);
 
     if (status == MIFARE_OK) {
         //calc bcc
@@ -384,14 +392,15 @@ void MFRC522Stop(MFRC522Driver* mfrc522p) {
  *
  * @api
  */
-MIFARE_Status_t MifareRequest(MFRC522Driver* mfrc522p, uint8_t reqMode, uint8_t* TagType) {
+MIFARE_Status_t MifareRequest(MFRC522Driver* mfrc522p, uint8_t reqMode, uint8_t* tagType, uint8_t tagTypeLen) {
     MIFARE_Status_t status;
     uint16_t backBits;          //The received data bits
+    uint8_t request[1];
 
     MFRC522WriteRegister(mfrc522p, MifareREG_BIT_FRAMING, 0x07);        //TxLastBists = BitFramingReg[2..0] ???
 
-    TagType[0] = reqMode;
-    status = MifareToPICC( mfrc522p, PCD_TRANSCEIVE, TagType, 1, TagType, &backBits);
+    request[0] = reqMode;
+    status = MifareToPICC( mfrc522p, PCD_TRANSCEIVE, request, 1, tagType, tagTypeLen, &backBits);
 
     if ((status != MIFARE_OK) || (backBits != 0x10)) {
         status = MIFARE_ERR;
@@ -493,7 +502,7 @@ uint8_t MifareSelectTag(MFRC522Driver* mfrc522p, uint8_t command, uint8_t* serNu
         buffer[i+2] = *(serNum+i);
     }
     MifareCalculateCRC(mfrc522p, buffer, 7, &buffer[7]);     //??
-    status = MifareToPICC(mfrc522p, PCD_TRANSCEIVE, buffer, 9, buffer, &recvBits);
+    status = MifareToPICC(mfrc522p, PCD_TRANSCEIVE, buffer, 9, buffer, 9, &recvBits);
 
     if ((status == MIFARE_OK) && (recvBits == 0x18)) {
         SAK = buffer[0];
@@ -526,7 +535,7 @@ MIFARE_Status_t MifareAuth(MFRC522Driver* mfrc522p, uint8_t authMode, uint8_t Bl
     for (i=0; i<4; i++) {
         buff[i+8] = *(serNum+i);
     }
-    status = MifareToPICC(mfrc522p, PCD_AUTHENT, buff, 12, buff, &recvBits);
+    status = MifareToPICC(mfrc522p, PCD_AUTHENT, buff, 12, buff, 12,&recvBits);
 
     if ((status != MIFARE_OK) || (!(MFRC522ReadRegister(mfrc522p, MifareREG_STATUS2) & 0x08))) {
         status = MIFARE_ERR;
@@ -549,7 +558,7 @@ MIFARE_Status_t MifareRead(MFRC522Driver* mfrc522p, uint8_t blockAddr, uint8_t* 
     recvData[0] = PICC_READ;
     recvData[1] = blockAddr;
     MifareCalculateCRC(mfrc522p, recvData,2, &recvData[2]);
-    status = MifareToPICC(mfrc522p, PCD_TRANSCEIVE, recvData, 4, recvData, &unLen);
+    status = MifareToPICC(mfrc522p, PCD_TRANSCEIVE, recvData, 4, recvData, 4, &unLen);
 
     if ((status != MIFARE_OK) || (unLen != 0x90)) {
         status = MIFARE_ERR;
@@ -574,7 +583,7 @@ MIFARE_Status_t MifareWrite(MFRC522Driver* mfrc522p, uint8_t blockAddr, uint8_t*
     buff[0] = PICC_WRITE;
     buff[1] = blockAddr;
     MifareCalculateCRC(mfrc522p, buff, 2, &buff[2]);
-    status = MifareToPICC(mfrc522p, PCD_TRANSCEIVE, buff, 4, buff, &recvBits);
+    status = MifareToPICC(mfrc522p, PCD_TRANSCEIVE, buff, 4, buff, 18, &recvBits);
 
     if ((status != MIFARE_OK) || (recvBits != 4) || ((buff[0] & 0x0F) != 0x0A)) {
         status = MIFARE_ERR;
@@ -586,7 +595,7 @@ MIFARE_Status_t MifareWrite(MFRC522Driver* mfrc522p, uint8_t blockAddr, uint8_t*
             buff[i] = *(writeData+i);
         }
         MifareCalculateCRC(mfrc522p, buff, 16, &buff[16]);
-        status = MifareToPICC(mfrc522p, PCD_TRANSCEIVE, buff, 18, buff, &recvBits);
+        status = MifareToPICC(mfrc522p, PCD_TRANSCEIVE, buff, 18, buff, 18, &recvBits);
 
         if ((status != MIFARE_OK) || (recvBits != 4) || ((buff[0] & 0x0F) != 0x0A)) {
             status = MIFARE_ERR;
@@ -603,12 +612,12 @@ MIFARE_Status_t MifareWrite(MFRC522Driver* mfrc522p, uint8_t blockAddr, uint8_t*
  *
  * @api
  */
-MIFARE_Status_t MifareCheck(MFRC522Driver* mfrc522p, struct MifareUID* id) {
+MIFARE_Status_t MifareCheck(MFRC522Driver* mfrc522p, struct MifareUID* id)
+{
     MIFARE_Status_t status;
-    //Find cards, return card type
-    uint8_t buffer[1];
+    uint8_t tagType[2];
 
-    status = MifareRequest(mfrc522p, PICC_REQALL, buffer);
+    status = MifareRequest(mfrc522p, PICC_REQALL, tagType, 2);
     if (status == MIFARE_OK) {
         //Card detected
         //Anti-collision, return card serial number 4 bytes
@@ -627,7 +636,7 @@ MIFARE_Status_t MifareHalt(MFRC522Driver* mfrc522p) {
     buff[1] = 0;
     MifareCalculateCRC(mfrc522p, buff, 2, &buff[2]);
 
-    return MifareToPICC(mfrc522p, PCD_TRANSCEIVE, buff, 4, buff, &unLen);
+    return MifareToPICC(mfrc522p, PCD_TRANSCEIVE, buff, 4, buff, 4, &unLen);
 }
 
 #endif /* HAL_USE_MFRC522 */
