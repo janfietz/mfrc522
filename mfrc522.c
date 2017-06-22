@@ -373,7 +373,7 @@ void MFRC522Stop(MFRC522Driver* mfrc522p) {
 	osalDbgCheck(mfrc522p != NULL);
 
 	osalSysLock();
-	osalDbgAssert((mfrc522p->state == MFRC522_STOP) || (mfrc522p->state == MFRC522_READY),
+	osalDbgAssert(mfrc522p->state == MFRC522_ACTIVE,
 			"invalid state");
 	osalSysUnlock();
 
